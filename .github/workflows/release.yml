@@ -2,6 +2,7 @@
 name: Node.js Package Publisher
 
 on:
+  workflow_dispatch: # 手動実行トリガーを追加
   push:
     tags:
       # YYYY.MM.リリース回数 形式のタグを想定 (例: 2025.04.1)
