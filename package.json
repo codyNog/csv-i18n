@@ -1,0 +1,23 @@
+{
+  "name": "csv-i18n",
+  "version": "1.0.0",
+  "description": "Converts CSV files in a directory to a single JSON file for i18n.",
+  "main": "src/index.js",
+  "bin": {
+    "csv-i18n": "src/index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:i18n": "npm run build:i18n:ts",
+    "build:i18n:ts": "node src/index.js --input ./sample-csvs --output ./dist/ts --format typescript",
+    "build:i18n:json": "node src/index.js --input ./sample-csvs --output ./dist/i18next --format i18next"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "commander": "^13.1.0",
+    "papaparse": "^5.5.2"
+  }
+}
