@@ -1,7 +1,10 @@
 {
-  "name": "csv-i18n",
+  "name": "@codynog/csv-i18n",
   "version": "1.0.0",
   "description": "Converts CSV files in a directory to a single JSON file for i18n.",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "main": "src/index.js",
   "bin": {
     "csv-i18n": "src/index.js"
