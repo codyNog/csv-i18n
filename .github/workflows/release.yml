@@ -31,7 +31,7 @@ jobs:
       - name: Generate CalVer version
         id: generate_version
         run: |
-          TAG_PREFIX=$(date +'%Y.%m.%d')
+          TAG_PREFIX=$(date +'%Y.%-m') # Use YYYY.M format (no zero-padding for month)
           echo "Checking tags with prefix: ${TAG_PREFIX}"
           # Use gh cli to get tags matching the prefix, sort them version-aware
           # Handle potential errors if no tags are found or gh command fails
