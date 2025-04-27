@@ -4,6 +4,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { Command } from 'commander';
 import Papa from 'papaparse';
+import { watch } from 'node:fs';
+import { spawn } from 'node:child_process';
 
 const program = new Command();
 
@@ -11,6 +13,7 @@ program
   .requiredOption('-i, --input <dir>', 'Input directory containing CSV files')
   .requiredOption('-o, --output <dir>', 'Output directory for generated files') // Changed description
   .option('-f, --format <type>', 'Output format type (typescript or i18next)', 'typescript') // Add format option
+  .option('-w, --watch', 'Watch input directory for changes') // 監視オプションを追加
   .parse(process.argv);
 
 const options = program.opts();
@@ -271,7 +274,80 @@ async function generateI18nextFiles(languages, translationsByLang, outputDir) {
 
 // --- Main Conversion Logic ---
 
-convertCsvToTs().catch(err => {
-  console.error('\nUnhandled error during conversion:', err);
-  process.exit(1);
-});
+// --- Main Execution Logic ---
+
+// Keep the conversion function as is
+async function runSingleConversion() {
+  console.log('\nStarting conversion...');
+  try {
+    await convertCsvToTs();
+    console.log('Conversion finished successfully.');
+  } catch (err) {
+    console.error('\nError during conversion:', err);
+    process.exit(1); // Exit if conversion fails in single run mode
+  }
+}
+
+// --- Watch Mode Logic ---
+function startWatching() {
+  console.log(`\nWatching for file changes in ${inputDir}... (Press Ctrl+C to stop)`);
+
+  let isRunning = false; // Flag to prevent concurrent runs
+
+  try {
+    watch(inputDir, { recursive: true }, (eventType, filename) => {
+      if (isRunning) {
+        console.log(`Skipping event for ${filename || 'unknown file'} as a process is already running.`);
+        return;
+      }
+
+      // Check if the changed file is a CSV file
+      if (filename && filename.toLowerCase().endsWith('.csv')) {
+        console.log(`\n[${eventType}] Detected change in: ${filename}. Triggering conversion script...`);
+        isRunning = true;
+
+        // Prepare arguments for the child process, removing --watch or -w
+        const args = process.argv.slice(2).filter(arg => arg !== '--watch' && arg !== '-w');
+        // console.log(`Running command: node ${process.argv[1]} ${args.join(' ')}`); // Keep this commented out unless debugging needed
+
+        const child = spawn(process.execPath, [process.argv[1], ...args], { // Use node executable path
+          stdio: 'inherit', // Inherit stdio to show conversion output/errors
+        });
+
+        child.on('close', (code) => {
+          console.log(`Conversion script finished with code ${code}. Ready for next change.`);
+          isRunning = false; // Allow next run
+        });
+
+        child.on('error', (err) => {
+          console.error('Failed to start conversion script:', err);
+          isRunning = false; // Allow next run even on error
+        });
+
+      }
+      // else if (filename) {
+      //    console.log(`Ignoring change in non-CSV file: ${filename}`);
+      // } else {
+      //    console.log(`Ignoring event with no filename (${eventType})`);
+      // }
+    });
+  } catch (err) {
+      console.error(`Error starting watcher on ${inputDir}:`, err);
+      console.error("Please ensure the input directory exists and you have permissions.");
+      process.exit(1);
+  }
+}
+
+// --- Entry Point ---
+if (options.watch) {
+  // Run initial conversion first before starting the watch
+  runSingleConversion().then(() => {
+      startWatching();
+  }).catch(() => {
+      console.error("Initial conversion failed. Watch mode will not start.");
+      process.exit(1);
+  });
+} else {
+  // Run conversion once and exit if not in watch mode
+  runSingleConversion();
+}

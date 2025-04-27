@@ -29,8 +29,10 @@ npx . --input <path/to/csv/directory> --output <path/to/output/directory>
 ### Options
 
 *   `-i, --input <dir>`: (Required) The input directory containing the CSV files. The tool will search this directory recursively.
-*   `-o, --output <dir>`: (Required) The path to the output directory where the TypeScript files (e.g., `ja.ts`, `en.ts`) should be saved. The directory will be created if it doesn't exist.
-
+*   `-o, --output <dir>`: (Required) The path to the output directory where the generated files (e.g., `ja.ts`, `en.ts` or `ja.json`, `en.json`) should be saved. The directory will be created if it doesn't exist.
+*   `-f, --format <type>`: (Optional) The output format type. Can be `typescript` (default) or `i18next` (generates nested JSON).
+*   `-w, --watch`: (Optional) Watch the input directory for changes and automatically re-run the conversion. Press Ctrl+C to stop watching.
+33 |
 ## CSV Format
 
 *   Files must have a `.csv` extension.
