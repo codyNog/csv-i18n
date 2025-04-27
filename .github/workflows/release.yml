@@ -2,27 +2,82 @@
 name: Node.js Package Publisher
 
 on:
-  workflow_dispatch: # 手動実行トリガーを追加
+  workflow_dispatch: # 手動実行トリガー
   push:
-    tags:
-      # YYYY.MM.リリース回数 形式のタグを想定 (例: 2025.04.1)
-      - '[0-9]{4}\.[0-9]{2}\.[0-9]+'
+    branches:
+      - main
+    paths:
+      - 'src/index.js' # src/index.js が変更されたときのみトリガー
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: write # タグの読み書きと package.json の更新に必要
+      packages: write # npm publish に必要
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
         with:
-          node-version: '22' # バージョンを22に更新！
+          fetch-depth: 0 # タグ情報を取得するために必要
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@codynog' # スコープはこれでOK
-      - run: npm ci
-      # ビルド不要
-      - run: npm publish
+          scope: '@codynog'
+
+      - name: Generate CalVer version
+        id: generate_version
+        run: |
+          TAG_PREFIX=$(date +'%Y.%m.%d')
+          echo "Checking tags with prefix: ${TAG_PREFIX}"
+          # Use gh cli to get tags matching the prefix, sort them version-aware
+          # Handle potential errors if no tags are found or gh command fails
+          EXISTING_TAGS=$(gh api repos/${{ github.repository }}/git/matching-refs/tags/${TAG_PREFIX}. --jq '.[] | .ref' | sed 's|refs/tags/||' | sort -V || echo "")
+          echo "Existing tags found: ${EXISTING_TAGS}"
+          LATEST_TAG=$(echo "${EXISTING_TAGS}" | tail -n 1)
+          echo "Latest tag: ${LATEST_TAG}"
+
+          BUILD_NUM=1 # Default build number
+          if [[ -n "${LATEST_TAG}" ]]; then
+            # Extract last number after dot
+            LAST_NUM=$(echo "${LATEST_TAG}" | grep -oE '[^.]+$')
+            # Check if LAST_NUM is a valid number
+            if [[ "${LAST_NUM}" =~ ^[0-9]+$ ]]; then
+               BUILD_NUM=$((LAST_NUM + 1))
+            else
+               echo "Warning: Could not extract build number from latest tag '${LATEST_TAG}'. Defaulting to 1."
+               # Consider alternative logic or error handling here if needed
+            fi
+          fi
+
+          NEW_VERSION="${TAG_PREFIX}.${BUILD_NUM}"
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${NEW_VERSION}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # gh cli needs token
+
+      - name: Update package.json version
+        run: npm version ${{ steps.generate_version.outputs.new_version }} --no-git-tag-version
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ビルド不要 (Assuming no build step needed based on previous context)
+
+      - name: Publish to GitHub Packages
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push Git tag
+        run: |
+          echo "Creating and pushing tag: ${{ steps.generate_version.outputs.new_version }}"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag ${{ steps.generate_version.outputs.new_version }}
+          git push origin ${{ steps.generate_version.outputs.new_version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Need token to push tag
